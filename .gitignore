@@ -6,6 +6,7 @@
 # Local documentation with secrets
 instructions.md
 TODO.md
+.env.prod
 
 # Dependencies
 node_modules/
