@@ -46,7 +46,7 @@ export async function handler(event) {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        from: 'Tennis Court Finder <noreply@tennis-court-finder.netlify.app>',
+        from: 'Tennis Court Finder <noreply@tennis-courts.fortylove.net>',
         to: normalizedEmail,
         subject: 'Sign in to Tennis Court Finder',
         html: `
