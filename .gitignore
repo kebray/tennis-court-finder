@@ -1,0 +1,38 @@
+# Environment & Secrets
+.env
+.env.local
+.env.*.local
+
+# Local documentation with secrets
+instructions.md
+TODO.md
+
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Netlify
+.netlify/
+
+# IDE & OS
+.DS_Store
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Testing
+coverage/
+
+# Misc
+*.local
+.cache/
