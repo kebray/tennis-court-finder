@@ -31,7 +31,7 @@ export async function handler(event) {
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({
-            from: 'Tennis Court Finder <noreply@resend.dev>',
+            from: 'Tennis Court Finder <noreply@tennis-courts.fortylove.net>',
             to: ADMIN_NOTIFICATION_EMAIL,
             subject: 'New Waitlist Request - Tennis Court Finder',
             html: `
