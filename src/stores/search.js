@@ -17,7 +17,37 @@ export const useSearchStore = defineStore('search', () => {
   const quotaRemaining = computed(() => quota.value.limit - quota.value.used)
   const canSearch = computed(() => quotaRemaining.value > 0)
 
+  // Check if input looks like lat/long coordinates
+  function parseCoordinates(input) {
+    // Match patterns like "30.44833, -97.75740" or "30.44833,-97.75740"
+    const coordPattern = /^(-?\d+\.?\d*)\s*,\s*(-?\d+\.?\d*)$/
+    const match = input.trim().match(coordPattern)
+
+    if (match) {
+      const lat = parseFloat(match[1])
+      const lng = parseFloat(match[2])
+
+      // Validate reasonable lat/lng ranges
+      if (lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
+        return { lat, lng }
+      }
+    }
+
+    return null
+  }
+
   async function geocodeAddress(address) {
+    // First check if input is lat/long coordinates
+    const coords = parseCoordinates(address)
+    if (coords) {
+      return {
+        lat: coords.lat,
+        lng: coords.lng,
+        placeName: `${coords.lat.toFixed(5)}, ${coords.lng.toFixed(5)}`
+      }
+    }
+
+    // Otherwise geocode the address via Mapbox
     const token = import.meta.env.VITE_MAPBOX_TOKEN
     const encoded = encodeURIComponent(address)
     const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encoded}.json?country=US&types=address,postcode,place&access_token=${token}`

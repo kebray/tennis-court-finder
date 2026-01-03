@@ -53,13 +53,13 @@ function toggleExpanded() {
       <!-- Address Input -->
       <div>
         <label for="address" class="block text-sm font-medium text-gray-700 mb-1">
-          Starting Address or Zip Code
+          Starting Address, Zip Code, or Coordinates
         </label>
         <input
           id="address"
           v-model="searchStore.searchAddress"
           type="text"
-          placeholder="e.g., 123 Main St, Austin, TX or 78701"
+          placeholder="e.g., 123 Main St, Austin, TX or 78701 or 30.267, -97.743"
           class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition"
           :disabled="searchStore.loading"
         />
