@@ -27,7 +27,7 @@ async function handleLogout() {
         </div>
         <div>
           <h1 class="text-lg font-bold text-gray-900">Tennis Court Finder</h1>
-          <p class="text-xs text-gray-500">Find private courts in your area</p>
+          <p class="text-xs text-gray-500">Find tennis courts in your area</p>
         </div>
       </div>
 

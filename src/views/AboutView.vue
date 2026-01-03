@@ -29,7 +29,7 @@ const router = useRouter()
         <section>
           <h2 class="text-2xl font-bold text-gray-900 mb-4">What is Tennis Court Finder?</h2>
           <p class="text-gray-600 leading-relaxed">
-            Tennis Court Finder helps you discover private residential tennis courts in your area.
+            Tennis Court Finder helps you discover tennis courts in your area.
             The goal is to enable you to reach out to homeowners and politely request permission
             to use their tennis court for occasional play.
           </p>

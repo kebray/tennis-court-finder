@@ -47,7 +47,7 @@ async function handleSubmit() {
           </svg>
         </div>
         <h1 class="text-3xl font-bold text-gray-900">Tennis Court Finder</h1>
-        <p class="mt-2 text-gray-600">Find private tennis courts in your area</p>
+        <p class="mt-2 text-gray-600">Find tennis courts in your area</p>
       </div>
 
       <!-- Login Form -->
