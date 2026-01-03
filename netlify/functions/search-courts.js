@@ -2,9 +2,9 @@ import { verifySessionToken, getSessionFromCookies } from './utils/auth.js'
 import { jsonResponse, errorResponse, parseBody } from './utils/response.js'
 import { getQuota, incrementQuota, canUseQuota, trackApiUsage } from './utils/storage.js'
 
-// Haversine distance formula
-function getDistance(lat1, lon1, lat2, lon2) {
-  const R = 3959 // Earth radius in miles
+// Haversine distance formula (returns miles by default)
+function getDistance(lat1, lon1, lat2, lon2, unit = 'miles') {
+  const R = unit === 'meters' ? 6371000 : 3959 // Earth radius in meters or miles
   const dLat = (lat2 - lat1) * Math.PI / 180
   const dLon = (lon2 - lon1) * Math.PI / 180
   const a =
@@ -97,6 +97,111 @@ function classifyCourt(tags) {
   // unmarked courts in OSM are at public facilities that weren't fully tagged.
   // Private residential courts are rare and usually explicitly tagged.
   return { type: 'public', verified: false }
+}
+
+// Cluster nearby courts of the same type to avoid duplicate listings
+// (e.g., a club with 6 courts should show as 1 result, not 6)
+const CLUSTER_DISTANCE_METERS = 50 // Courts within 50 meters are clustered
+
+function clusterCourts(courts) {
+  if (courts.length === 0) return []
+
+  const clustered = []
+  const used = new Set()
+
+  for (let i = 0; i < courts.length; i++) {
+    if (used.has(i)) continue
+
+    const court = courts[i]
+    const cluster = [court]
+    used.add(i)
+
+    // Skip clustering for private residential courts - neighboring houses
+    // could each have their own court and we don't want to merge them
+    if (court.type === 'private') {
+      clustered.push({ ...court, courtCount: 1 })
+      continue
+    }
+
+    // Find all nearby courts of the same type (clubs and public only)
+    for (let j = i + 1; j < courts.length; j++) {
+      if (used.has(j)) continue
+
+      const other = courts[j]
+
+      // Must be same type to cluster
+      if (other.type !== court.type) continue
+
+      // Check if within clustering distance
+      const distMeters = getDistance(court.lat, court.lng, other.lat, other.lng, 'meters')
+
+      if (distMeters <= CLUSTER_DISTANCE_METERS) {
+        // Additional check: if both have real addresses, they must match
+        const courtHasAddress = court.address && court.address !== court.coords
+        const otherHasAddress = other.address && other.address !== other.coords
+
+        if (courtHasAddress && otherHasAddress) {
+          // Both have addresses - only cluster if addresses are similar
+          // (simple check: first 20 chars match, handles minor variations)
+          const addr1 = court.address.substring(0, 20).toLowerCase()
+          const addr2 = other.address.substring(0, 20).toLowerCase()
+          if (addr1 !== addr2) continue
+        }
+
+        cluster.push(other)
+        used.add(j)
+      }
+    }
+
+    // Create merged court from cluster
+    if (cluster.length === 1) {
+      // No clustering needed
+      clustered.push({ ...court, courtCount: 1 })
+    } else {
+      // Calculate centroid
+      const avgLat = cluster.reduce((sum, c) => sum + c.lat, 0) / cluster.length
+      const avgLng = cluster.reduce((sum, c) => sum + c.lng, 0) / cluster.length
+
+      // Find the best address (prefer real addresses over coords)
+      let bestAddress = null
+      let bestAddressType = null
+      for (const c of cluster) {
+        if (c.address && c.address !== c.coords) {
+          if (!bestAddress || c.addressType === 'address') {
+            bestAddress = c.address
+            bestAddressType = c.addressType
+          }
+        }
+      }
+
+      // Use first court's distance as base (will be recalculated)
+      const avgDistance = cluster.reduce((sum, c) => sum + c.distance, 0) / cluster.length
+
+      // Merge verified status (verified if any in cluster is verified)
+      const isVerified = cluster.some(c => c.verified)
+
+      // Combine all OSM IDs for reference
+      const combinedId = cluster.map(c => c.id).join('+')
+
+      const coords = `${avgLat.toFixed(5)}, ${avgLng.toFixed(5)}`
+
+      clustered.push({
+        id: combinedId,
+        lat: avgLat,
+        lng: avgLng,
+        address: bestAddress || coords,
+        coords: coords,
+        addressType: bestAddressType,
+        type: court.type,
+        verified: isVerified,
+        distance: avgDistance,
+        courtCount: cluster.length,
+        tags: court.tags // Keep first court's tags
+      })
+    }
+  }
+
+  return clustered
 }
 
 // Overpass API endpoints (fallbacks in case primary is overloaded)
@@ -371,15 +476,19 @@ export async function handler(event) {
       })
     }
 
+    // Cluster nearby courts of the same type
+    const clusteredCourts = clusterCourts(courts)
+    console.log(`Clustered ${courts.length} courts into ${clusteredCourts.length} locations`)
+
     // Sort by distance
-    courts.sort((a, b) => a.distance - b.distance)
+    clusteredCourts.sort((a, b) => a.distance - b.distance)
 
     // Increment quota
     const quota = incrementQuota(email)
 
     return jsonResponse({
-      courts,
-      count: courts.length,
+      courts: clusteredCourts,
+      count: clusteredCourts.length,
       quota: {
         used: quota.used,
         limit: quota.limit,

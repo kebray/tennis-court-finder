@@ -111,10 +111,11 @@ function updateMarkers(courts) {
     })
 
     // Create popup
+    const courtCountText = court.courtCount > 1 ? ` (${court.courtCount} courts)` : ''
     const popup = new mapboxgl.Popup({ offset: 25 }).setHTML(`
       <div class="p-2">
         <p class="font-semibold text-gray-900">${court.address || 'Unknown Address'}</p>
-        <p class="text-sm text-gray-600 capitalize">${court.type || 'Unknown'} Court</p>
+        <p class="text-sm text-gray-600 capitalize">${court.type || 'Unknown'}${courtCountText}</p>
         ${court.distance ? `<p class="text-sm text-gray-500">${court.distance.toFixed(1)} miles away</p>` : ''}
         ${court.verified ? '<p class="text-xs text-green-600 mt-1">✓ Verified</p>' : ''}
       </div>

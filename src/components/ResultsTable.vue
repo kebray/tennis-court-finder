@@ -247,9 +247,14 @@ function getGoogleMapsUrl(court) {
               </div>
             </td>
             <td class="px-4 py-3">
-              <span :class="['px-2 py-1 rounded-full text-xs font-medium', typeColors[court.type] || 'bg-gray-100 text-gray-800']">
-                {{ typeLabels[court.type] || court.type || 'Unknown' }}
-              </span>
+              <div class="flex flex-col items-start">
+                <span :class="['px-2 py-1 rounded-full text-xs font-medium', typeColors[court.type] || 'bg-gray-100 text-gray-800']">
+                  {{ typeLabels[court.type] || court.type || 'Unknown' }}
+                </span>
+                <span v-if="court.courtCount > 1" class="text-xs text-gray-500 mt-1">
+                  {{ court.courtCount }} courts
+                </span>
+              </div>
             </td>
             <td class="px-4 py-3 text-gray-600">
               {{ court.distance ? `${court.distance.toFixed(1)} mi` : '-' }}
