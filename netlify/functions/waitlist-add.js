@@ -56,7 +56,7 @@ export async function handler(event) {
           })
         })
 
-        trackApiUsage('resend')
+        await trackApiUsage('resend')
       } catch (emailError) {
         console.error('Failed to send admin notification:', emailError)
         // Don't fail the request if notification fails

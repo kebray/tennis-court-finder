@@ -79,7 +79,7 @@ export async function handler(event) {
 
     console.log('Email sent successfully to:', normalizedEmail)
 
-    trackApiUsage('resend')
+    await trackApiUsage('resend')
 
     // Log successful login request
     await logLogin(normalizedEmail, true, event.headers['x-forwarded-for'] || event.headers['client-ip'])

@@ -20,7 +20,7 @@ export async function handler(event) {
       return errorResponse('Admin access required', 403)
     }
 
-    const usage = getApiUsage()
+    const usage = await getApiUsage()
 
     return jsonResponse(usage)
   } catch (error) {

@@ -424,7 +424,7 @@ export async function handler(event) {
 
   try {
     // Query Overpass API
-    trackApiUsage('overpass')
+    await trackApiUsage('overpass')
     const elements = await queryOverpass(lat, lng, distanceMiles)
 
     // Get Mapbox token for reverse geocoding
@@ -455,7 +455,7 @@ export async function handler(event) {
       let coords = `${courtLat.toFixed(5)}, ${courtLng.toFixed(5)}`
 
       if (courts.length < 50) { // Limit reverse geocoding to first 50
-        trackApiUsage('mapbox-geocoding')
+        await trackApiUsage('mapbox-geocoding')
         const geocodeResult = await reverseGeocode(courtLat, courtLng, mapboxToken)
         if (geocodeResult) {
           address = geocodeResult.address
