@@ -136,8 +136,12 @@ Add their email to both `ALLOWED_EMAILS` and `ADMIN_EMAILS`.
 ### Invalidate all sessions
 Increment `JWT_VERSION` in Netlify environment variables.
 
-### Code Commits
+### Using GIT
+
+## Code Commits
 When commiting code to the respository, do not include any references to Claude in the git commit messages.
+
+Do not stage, commit, or push code without first getting confirmation from the human user of Claude.
 
 ### Debug search issues
 Check Netlify function logs for Overpass API errors. Multiple fallback endpoints are configured.
@@ -146,6 +150,7 @@ Check Netlify function logs for Overpass API errors. Multiple fallback endpoints
 
 These files contain sensitive info and are gitignored:
 - `.env` - Local environment variables
+- `.env.prod` - Local environment variables
 - `instructions.md` - Original project requirements
 - `TODO.md` - Future enhancement ideas
 
