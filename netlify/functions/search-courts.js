@@ -324,35 +324,45 @@ const CLUB_ASSOCIATION_DISTANCE_METERS = 200
 
 // Query Overpass API for nearby club features (sports centres, golf courses, etc.)
 async function queryNearbyClubFeatures(lat, lng, radiusMiles) {
-  const radiusMeters = radiusMiles * 1609.34
+  try {
+    const radiusMeters = radiusMiles * 1609.34
 
-  // Query for features that might indicate a private club
-  const query = `
-    [out:json][timeout:30];
-    (
-      way["leisure"="sports_centre"](around:${radiusMeters},${lat},${lng});
-      node["leisure"="sports_centre"](around:${radiusMeters},${lat},${lng});
-      way["leisure"="golf_course"](around:${radiusMeters},${lat},${lng});
-      node["leisure"="golf_course"](around:${radiusMeters},${lat},${lng});
-      way["club"](around:${radiusMeters},${lat},${lng});
-      node["club"](around:${radiusMeters},${lat},${lng});
-      way["amenity"="club_house"](around:${radiusMeters},${lat},${lng});
-      node["amenity"="club_house"](around:${radiusMeters},${lat},${lng});
-      way["amenity"="community_centre"]["name"~"club",i](around:${radiusMeters},${lat},${lng});
-    );
-    out center tags;
-  `
+    // Query for features that might indicate a private club
+    const query = `
+      [out:json][timeout:15];
+      (
+        way["leisure"="sports_centre"](around:${radiusMeters},${lat},${lng});
+        node["leisure"="sports_centre"](around:${radiusMeters},${lat},${lng});
+        way["leisure"="golf_course"](around:${radiusMeters},${lat},${lng});
+        node["leisure"="golf_course"](around:${radiusMeters},${lat},${lng});
+        way["club"](around:${radiusMeters},${lat},${lng});
+        node["club"](around:${radiusMeters},${lat},${lng});
+        way["amenity"="club_house"](around:${radiusMeters},${lat},${lng});
+        node["amenity"="club_house"](around:${radiusMeters},${lat},${lng});
+      );
+      out center tags;
+    `
 
-  // Try each endpoint
-  for (const endpoint of OVERPASS_ENDPOINTS) {
-    try {
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: `data=${encodeURIComponent(query)}`
-      })
+    // Try each endpoint (but don't let this block the main query)
+    for (const endpoint of OVERPASS_ENDPOINTS) {
+      try {
+        const controller = new AbortController()
+        const timeoutId = setTimeout(() => controller.abort(), 10000) // 10 second timeout
 
-      if (response.ok) {
+        const response = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: `data=${encodeURIComponent(query)}`,
+          signal: controller.signal
+        })
+
+        clearTimeout(timeoutId)
+
+        if (!response.ok) {
+          console.error(`Club features query returned ${response.status} on ${endpoint}`)
+          continue
+        }
+
         const data = await response.json()
         // Filter to only features with names containing club-related keywords
         const clubFeatures = (data.elements || []).filter(el => {
@@ -368,12 +378,16 @@ async function queryNearbyClubFeatures(lat, lng, radiusMiles) {
 
         console.log(`Found ${clubFeatures.length} club features nearby`)
         return clubFeatures
+      } catch (err) {
+        console.error(`Club features query failed on ${endpoint}:`, err.message)
+        continue
       }
-    } catch (err) {
-      console.error(`Club features query failed on ${endpoint}:`, err.message)
     }
+  } catch (err) {
+    console.error('Club features query error:', err.message)
   }
 
+  // Return empty array on any failure - don't break the main search
   return []
 }
 
