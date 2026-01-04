@@ -73,7 +73,11 @@ watch(() => resultsStore.selectedCourt, (court) => {
       return lngLat.lng === court.lng && lngLat.lat === court.lat
     })
     if (marker) {
-      marker.togglePopup()
+      const popup = marker.getPopup()
+      // Only open if not already open (avoid toggle closing it)
+      if (popup && !popup.isOpen()) {
+        marker.togglePopup()
+      }
     }
   }
 })

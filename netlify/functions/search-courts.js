@@ -156,21 +156,53 @@ function classifyCourt(tags, addressInfo = null) {
   return { type: 'public', verified: false }
 }
 
+// Keywords that indicate a private club from POI/address names
+const clubPoiKeywords = [
+  'country club', 'countryclub',
+  'tennis club', 'tennisclub',
+  'golf club', 'golfclub',
+  'swim club', 'swimclub',
+  'athletic club', 'athleticclub',
+  'racquet club', 'racquetclub',
+  'sports club', 'sportsclub',
+  'yacht club', 'yachtclub',
+  'beach club', 'beachclub',
+  'fitness club', 'fitnessclub',
+  'health club', 'healthclub',
+  'club house', 'clubhouse',
+  ' cc', // e.g., "Westwood CC"
+  'resort',
+  'hotel'
+]
+
+// Check if text contains club indicators
+function isClubText(text) {
+  const lowerText = text.toLowerCase()
+  return clubPoiKeywords.some(k => lowerText.includes(k))
+}
+
 // Re-classify a court based on reverse geocoding results
-// This helps detect multi-family when the POI name indicates apartments
+// This helps detect clubs and multi-family from POI names
 function reclassifyWithAddress(currentType, verified, addressInfo) {
-  // Only reclassify private to multi-family if address indicates it
-  if (currentType === 'private' && addressInfo?.poiName) {
-    if (isMultiFamilyText(addressInfo.poiName)) {
-      return { type: 'multi-family', verified }
+  const poiName = addressInfo?.poiName || ''
+  const address = addressInfo?.address || ''
+  const textToCheck = `${poiName} ${address}`
+
+  // Check for club indicators - reclassify unverified public or private to club
+  if ((currentType === 'public' && !verified) || currentType === 'private') {
+    if (isClubText(textToCheck)) {
+      return { type: 'club', verified: false }
     }
   }
-  // Also check unverified public - might actually be apartment complex
-  if (currentType === 'public' && !verified && addressInfo?.poiName) {
-    if (isMultiFamilyText(addressInfo.poiName)) {
-      return { type: 'multi-family', verified: false }
-    }
+
+  // Check for multi-family indicators
+  if (currentType === 'private' && isMultiFamilyText(textToCheck)) {
+    return { type: 'multi-family', verified }
   }
+  if (currentType === 'public' && !verified && isMultiFamilyText(textToCheck)) {
+    return { type: 'multi-family', verified: false }
+  }
+
   return { type: currentType, verified }
 }
 
