@@ -319,6 +319,76 @@ const OVERPASS_ENDPOINTS = [
   'https://maps.mail.ru/osm/tools/overpass/api/interpreter'
 ]
 
+// Distance threshold for associating courts with nearby club features (meters)
+const CLUB_ASSOCIATION_DISTANCE_METERS = 200
+
+// Query Overpass API for nearby club features (sports centres, golf courses, etc.)
+async function queryNearbyClubFeatures(lat, lng, radiusMiles) {
+  const radiusMeters = radiusMiles * 1609.34
+
+  // Query for features that might indicate a private club
+  const query = `
+    [out:json][timeout:30];
+    (
+      way["leisure"="sports_centre"](around:${radiusMeters},${lat},${lng});
+      node["leisure"="sports_centre"](around:${radiusMeters},${lat},${lng});
+      way["leisure"="golf_course"](around:${radiusMeters},${lat},${lng});
+      node["leisure"="golf_course"](around:${radiusMeters},${lat},${lng});
+      way["club"](around:${radiusMeters},${lat},${lng});
+      node["club"](around:${radiusMeters},${lat},${lng});
+      way["amenity"="club_house"](around:${radiusMeters},${lat},${lng});
+      node["amenity"="club_house"](around:${radiusMeters},${lat},${lng});
+      way["amenity"="community_centre"]["name"~"club",i](around:${radiusMeters},${lat},${lng});
+    );
+    out center tags;
+  `
+
+  // Try each endpoint
+  for (const endpoint of OVERPASS_ENDPOINTS) {
+    try {
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: `data=${encodeURIComponent(query)}`
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        // Filter to only features with names containing club-related keywords
+        const clubFeatures = (data.elements || []).filter(el => {
+          const name = (el.tags?.name || '').toLowerCase()
+          return name.includes('club') || name.includes('country') ||
+                 name.includes('resort') || name.includes('athletic')
+        }).map(el => ({
+          lat: el.center?.lat || el.lat,
+          lng: el.center?.lon || el.lon,
+          name: el.tags?.name || '',
+          type: el.tags?.leisure || el.tags?.amenity || el.tags?.club || 'unknown'
+        }))
+
+        console.log(`Found ${clubFeatures.length} club features nearby`)
+        return clubFeatures
+      }
+    } catch (err) {
+      console.error(`Club features query failed on ${endpoint}:`, err.message)
+    }
+  }
+
+  return []
+}
+
+// Check if a court is near any known club feature
+function findNearbyClub(courtLat, courtLng, clubFeatures) {
+  for (const club of clubFeatures) {
+    if (!club.lat || !club.lng) continue
+    const distanceMeters = getDistance(courtLat, courtLng, club.lat, club.lng, 'meters')
+    if (distanceMeters <= CLUB_ASSOCIATION_DISTANCE_METERS) {
+      return club
+    }
+  }
+  return null
+}
+
 // Query Overpass API for tennis courts
 async function queryOverpass(lat, lng, radiusMiles) {
   // Convert miles to meters (approximately)
@@ -532,9 +602,14 @@ export async function handler(event) {
   }
 
   try {
-    // Query Overpass API
+    // Query Overpass API for tennis courts and nearby club features in parallel
     await trackApiUsage('overpass')
-    const elements = await queryOverpass(lat, lng, distanceMiles)
+    const [elements, clubFeatures] = await Promise.all([
+      queryOverpass(lat, lng, distanceMiles),
+      queryNearbyClubFeatures(lat, lng, distanceMiles)
+    ])
+
+    console.log(`Found ${elements.length} tennis courts and ${clubFeatures.length} club features`)
 
     // Get Mapbox token for reverse geocoding
     const mapboxToken = process.env.MAPBOX_TOKEN || process.env.VITE_MAPBOX_TOKEN
@@ -578,6 +653,17 @@ export async function handler(event) {
         const reclassified = reclassifyWithAddress(type, verified, geocodeResult)
         type = reclassified.type
         verified = reclassified.verified
+      }
+
+      // Check if court is near a known club feature (e.g., country club, sports centre)
+      // Only reclassify if currently unverified public or private
+      if ((type === 'public' && !verified) || type === 'private') {
+        const nearbyClub = findNearbyClub(courtLat, courtLng, clubFeatures)
+        if (nearbyClub) {
+          console.log(`Court at ${courtLat.toFixed(4)},${courtLng.toFixed(4)} is near "${nearbyClub.name}" - classifying as club`)
+          type = 'club'
+          verified = false // Not verified from OSM tags, but detected from nearby feature
+        }
       }
 
       courts.push({
