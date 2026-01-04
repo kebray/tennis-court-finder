@@ -208,7 +208,8 @@ function reclassifyWithAddress(currentType, verified, addressInfo) {
 
 // Cluster nearby courts of the same type to avoid duplicate listings
 // (e.g., a club with 6 courts should show as 1 result, not 6)
-const CLUSTER_DISTANCE_METERS = 50 // Courts within 50 meters are clustered
+const CLUSTER_DISTANCE_METERS = 50 // Default for public courts
+const CLUB_CLUSTER_DISTANCE_METERS = 150 // Larger distance for clubs (spread across property)
 
 function clusterCourts(courts) {
   if (courts.length === 0) return []
@@ -231,6 +232,9 @@ function clusterCourts(courts) {
       continue
     }
 
+    // Use larger clustering distance for clubs (courts spread across property)
+    const clusterDistance = court.type === 'club' ? CLUB_CLUSTER_DISTANCE_METERS : CLUSTER_DISTANCE_METERS
+
     // Find all nearby courts of the same type (clubs and public only)
     for (let j = i + 1; j < courts.length; j++) {
       if (used.has(j)) continue
@@ -243,7 +247,7 @@ function clusterCourts(courts) {
       // Check if within clustering distance
       const distMeters = getDistance(court.lat, court.lng, other.lat, other.lng, 'meters')
 
-      if (distMeters <= CLUSTER_DISTANCE_METERS) {
+      if (distMeters <= clusterDistance) {
         // Additional check: if both have real addresses, they must match
         const courtHasAddress = court.address && court.address !== court.coords
         const otherHasAddress = other.address && other.address !== other.coords
@@ -365,10 +369,14 @@ async function queryNearbyClubFeatures(lat, lng, radiusMiles) {
 
         const data = await response.json()
         // Filter to only features with names containing club-related keywords
+        // IMPORTANT: Require "club" in the name to avoid false positives from golf courses
+        // that don't have "club" (e.g., "Hill Country Golf Course" should NOT match,
+        // but "Westwood Country Club" SHOULD match because it contains "club")
         const clubFeatures = (data.elements || []).filter(el => {
           const name = (el.tags?.name || '').toLowerCase()
-          return name.includes('club') || name.includes('country') ||
-                 name.includes('resort') || name.includes('athletic')
+          // Must have "club" in name - this catches country clubs, tennis clubs, etc.
+          // "resort" and "athletic" without "club" are less reliable indicators
+          return name.includes('club')
         }).map(el => ({
           lat: el.center?.lat || el.lat,
           lng: el.center?.lon || el.lon,
@@ -398,6 +406,79 @@ function findNearbyClub(courtLat, courtLng, clubFeatures) {
     const distanceMeters = getDistance(courtLat, courtLng, club.lat, club.lng, 'meters')
     if (distanceMeters <= CLUB_ASSOCIATION_DISTANCE_METERS) {
       return club
+    }
+  }
+  return null
+}
+
+// Distance threshold for associating courts with nearby apartment buildings (meters)
+const MULTIFAMILY_ASSOCIATION_DISTANCE_METERS = 100
+
+// Query Overpass API for nearby apartment/multi-family buildings
+async function queryNearbyMultiFamilyFeatures(lat, lng, radiusMiles) {
+  try {
+    const radiusMeters = radiusMiles * 1609.34
+
+    // Query for apartment buildings and residential complexes
+    const query = `
+      [out:json][timeout:15];
+      (
+        way["building"="apartments"](around:${radiusMeters},${lat},${lng});
+        way["building"="residential"]["residential"="apartments"](around:${radiusMeters},${lat},${lng});
+        way["landuse"="residential"]["residential"="apartments"](around:${radiusMeters},${lat},${lng});
+        relation["building"="apartments"](around:${radiusMeters},${lat},${lng});
+      );
+      out center tags;
+    `
+
+    for (const endpoint of OVERPASS_ENDPOINTS) {
+      try {
+        const controller = new AbortController()
+        const timeoutId = setTimeout(() => controller.abort(), 10000)
+
+        const response = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: `data=${encodeURIComponent(query)}`,
+          signal: controller.signal
+        })
+
+        clearTimeout(timeoutId)
+
+        if (!response.ok) {
+          console.error(`Multi-family features query returned ${response.status} on ${endpoint}`)
+          continue
+        }
+
+        const data = await response.json()
+        const multiFamilyFeatures = (data.elements || []).map(el => ({
+          lat: el.center?.lat || el.lat,
+          lng: el.center?.lon || el.lon,
+          name: el.tags?.name || '',
+          type: el.tags?.building || el.tags?.residential || 'apartments'
+        }))
+
+        console.log(`Found ${multiFamilyFeatures.length} multi-family features nearby`)
+        return multiFamilyFeatures
+      } catch (err) {
+        console.error(`Multi-family features query failed on ${endpoint}:`, err.message)
+        continue
+      }
+    }
+  } catch (err) {
+    console.error('Multi-family features query error:', err.message)
+  }
+
+  return []
+}
+
+// Check if a court is near any known multi-family building
+function findNearbyMultiFamily(courtLat, courtLng, multiFamilyFeatures) {
+  for (const building of multiFamilyFeatures) {
+    if (!building.lat || !building.lng) continue
+    const distanceMeters = getDistance(courtLat, courtLng, building.lat, building.lng, 'meters')
+    if (distanceMeters <= MULTIFAMILY_ASSOCIATION_DISTANCE_METERS) {
+      return building
     }
   }
   return null
@@ -616,14 +697,15 @@ export async function handler(event) {
   }
 
   try {
-    // Query Overpass API for tennis courts and nearby club features in parallel
+    // Query Overpass API for tennis courts and nearby features in parallel
     await trackApiUsage('overpass')
-    const [elements, clubFeatures] = await Promise.all([
+    const [elements, clubFeatures, multiFamilyFeatures] = await Promise.all([
       queryOverpass(lat, lng, distanceMiles),
-      queryNearbyClubFeatures(lat, lng, distanceMiles)
+      queryNearbyClubFeatures(lat, lng, distanceMiles),
+      queryNearbyMultiFamilyFeatures(lat, lng, distanceMiles)
     ])
 
-    console.log(`Found ${elements.length} tennis courts and ${clubFeatures.length} club features`)
+    console.log(`Found ${elements.length} tennis courts, ${clubFeatures.length} club features, ${multiFamilyFeatures.length} multi-family features`)
 
     // Get Mapbox token for reverse geocoding
     const mapboxToken = process.env.MAPBOX_TOKEN || process.env.VITE_MAPBOX_TOKEN
@@ -676,6 +758,17 @@ export async function handler(event) {
         if (nearbyClub) {
           console.log(`Court at ${courtLat.toFixed(4)},${courtLng.toFixed(4)} is near "${nearbyClub.name}" - classifying as club`)
           type = 'club'
+          verified = false // Not verified from OSM tags, but detected from nearby feature
+        }
+      }
+
+      // Check if court is near an apartment building (multi-family housing)
+      // Only reclassify if currently unverified public or private (not already club)
+      if ((type === 'public' && !verified) || type === 'private') {
+        const nearbyMultiFamily = findNearbyMultiFamily(courtLat, courtLng, multiFamilyFeatures)
+        if (nearbyMultiFamily) {
+          console.log(`Court at ${courtLat.toFixed(4)},${courtLng.toFixed(4)} is near apartment building "${nearbyMultiFamily.name || 'unnamed'}" - classifying as multi-family`)
+          type = 'multi-family'
           verified = false // Not verified from OSM tags, but detected from nearby feature
         }
       }
