@@ -8,6 +8,7 @@
   port = 8888
   targetPort = 5173
   autoLaunch = false
+  framework = "#custom"
 
 [[redirects]]
   from = "/api/*"

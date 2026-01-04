@@ -7,7 +7,6 @@ import AppHeader from '../components/AppHeader.vue'
 import SearchForm from '../components/SearchForm.vue'
 import MapView from '../components/MapView.vue'
 import ResultsTable from '../components/ResultsTable.vue'
-import QuotaDisplay from '../components/QuotaDisplay.vue'
 import AdminPanel from '../components/AdminPanel.vue'
 
 const authStore = useAuthStore()
@@ -93,10 +92,7 @@ function showNotification(message, type = 'success') {
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <!-- Left Column: Search & Results -->
         <div class="lg:col-span-1 space-y-6">
-          <!-- Quota Display -->
-          <QuotaDisplay />
-
-          <!-- Search Form -->
+          <!-- Search Form (includes Quota Display) -->
           <SearchForm @search="handleSearch" />
 
           <!-- Results Table -->
