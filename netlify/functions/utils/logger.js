@@ -8,10 +8,17 @@ const CONFIG = {
   METRICS_STORE: 'usage-metrics'
 }
 
-// Check if Blobs is available (not available in local dev without extra config)
+// Check if Blobs can be configured (either auto or manual)
 function isBlobsAvailable() {
-  // Netlify Blobs requires NETLIFY_BLOBS_CONTEXT which is set in production
-  return !!process.env.NETLIFY_BLOBS_CONTEXT || !!process.env.NETLIFY
+  // Auto context (new function format)
+  if (process.env.NETLIFY_BLOBS_CONTEXT) {
+    return true
+  }
+  // Manual config (legacy function format) - need site ID and token
+  if (process.env.NETLIFY_SITE_ID && process.env.NETLIFY_BLOBS_TOKEN) {
+    return true
+  }
+  return false
 }
 
 // Safely get a store, returns null if not available
@@ -20,6 +27,15 @@ function safeGetStore(name) {
     return null
   }
   try {
+    // If we have manual config, use it
+    if (process.env.NETLIFY_SITE_ID && process.env.NETLIFY_BLOBS_TOKEN) {
+      return getStore({
+        name,
+        siteID: process.env.NETLIFY_SITE_ID,
+        token: process.env.NETLIFY_BLOBS_TOKEN
+      })
+    }
+    // Otherwise use auto context
     return getStore(name)
   } catch (error) {
     console.warn(`Blobs not available: ${error.message}`)
