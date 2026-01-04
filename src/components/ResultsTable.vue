@@ -9,12 +9,14 @@ const copiedId = ref(null)
 
 const typeLabels = {
   private: 'Private Residential',
+  'multi-family': 'Multi-Family',
   public: 'Public Facility',
   club: 'Private Club'
 }
 
 const typeColors = {
   private: 'bg-green-100 text-green-800',
+  'multi-family': 'bg-purple-100 text-purple-800',
   public: 'bg-blue-100 text-blue-800',
   club: 'bg-orange-100 text-orange-800'
 }
@@ -110,6 +112,17 @@ function getGoogleMapsUrl(court) {
           ]"
         >
           Private ({{ resultsStore.courtCounts.private }})
+        </button>
+        <button
+          @click="resultsStore.setFilter('type', 'multi-family')"
+          :class="[
+            'px-3 py-1 text-sm rounded-full transition',
+            resultsStore.filters.type === 'multi-family'
+              ? 'bg-purple-600 text-white'
+              : 'bg-purple-100 text-purple-800 hover:bg-purple-200'
+          ]"
+        >
+          Multi-Family ({{ resultsStore.courtCounts['multi-family'] }})
         </button>
         <button
           @click="resultsStore.setFilter('type', 'public')"

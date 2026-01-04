@@ -5,7 +5,7 @@ export const useResultsStore = defineStore('results', () => {
   const courts = ref([])
   const selectedCourt = ref(null)
   const filters = ref({
-    type: 'all', // 'all', 'private', 'public', 'club'
+    type: 'all', // 'all', 'private', 'multi-family', 'public', 'club'
     verified: false,
     hasRealAddress: false // filter to only show courts with actual addresses (not lat/long)
   })
@@ -66,6 +66,7 @@ export const useResultsStore = defineStore('results', () => {
   const courtCounts = computed(() => ({
     total: courts.value.length,
     private: courts.value.filter(c => c.type === 'private').length,
+    'multi-family': courts.value.filter(c => c.type === 'multi-family').length,
     public: courts.value.filter(c => c.type === 'public').length,
     club: courts.value.filter(c => c.type === 'club').length,
     verified: courts.value.filter(c => c.verified).length

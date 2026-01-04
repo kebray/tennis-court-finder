@@ -16,9 +16,10 @@ const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN
 
 // Court type colors
 const typeColors = {
-  private: '#22c55e', // green
-  public: '#3b82f6',  // blue
-  club: '#f97316'     // orange
+  private: '#22c55e',      // green
+  'multi-family': '#a855f7', // purple
+  public: '#3b82f6',       // blue
+  club: '#f97316'          // orange
 }
 
 onMounted(() => {

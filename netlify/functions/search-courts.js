@@ -16,8 +16,32 @@ function getDistance(lat1, lon1, lat2, lon2, unit = 'miles') {
   return R * c
 }
 
+// Keywords that indicate multi-family/apartment housing
+const multiFamilyKeywords = [
+  'apartment', 'apartments', 'apt', 'apts',
+  'condo', 'condos', 'condominium', 'condominiums',
+  'complex', 'community', // when combined with residential context
+  'townhome', 'townhomes', 'townhouse', 'townhouses',
+  'villa', 'villas',
+  'loft', 'lofts',
+  'manor',
+  'terrace',
+  'residences', // plural often indicates multi-family
+  'commons',
+  'landing',
+  'pointe', 'point', // common in apartment names
+  'crossing',
+  'place' // when part of complex name
+]
+
+// Check if text contains multi-family housing indicators
+function isMultiFamilyText(text) {
+  const lowerText = text.toLowerCase()
+  return multiFamilyKeywords.some(k => lowerText.includes(k))
+}
+
 // Classify court type based on OSM tags
-function classifyCourt(tags) {
+function classifyCourt(tags, addressInfo = null) {
   const access = tags.access?.toLowerCase() || ''
   const leisure = tags.leisure?.toLowerCase() || ''
   const name = (tags.name || '').toLowerCase()
@@ -25,6 +49,8 @@ function classifyCourt(tags) {
   const amenity = (tags.amenity || '').toLowerCase()
   const landuse = (tags.landuse || '').toLowerCase()
   const ownership = (tags.ownership || '').toLowerCase()
+  const building = (tags.building || '').toLowerCase()
+  const residential = (tags.residential || '').toLowerCase()
 
   // Keywords that indicate public facilities
   const publicKeywords = ['park', 'school', 'recreation', 'community', 'municipal', 'city', 'county', 'state', 'public', 'district', 'university', 'college', 'high school', 'middle school', 'elementary', 'academy', 'ymca', 'ywca', 'civic', 'township']
@@ -32,16 +58,34 @@ function classifyCourt(tags) {
   // Keywords that indicate private clubs
   const clubKeywords = ['club', 'country', 'tennis center', 'tennis centre', 'racquet', 'racket', 'athletic', 'fitness', 'resort', 'hotel', 'swim', 'golf']
 
-  // Keywords that indicate private residential
-  const privateKeywords = ['private', 'residence', 'residential', 'home', 'estate']
+  // Keywords that indicate private residential (single-family)
+  const privateKeywords = ['private', 'residence', 'home', 'estate']
 
   // Combine all text fields to search
   const allText = `${name} ${operator} ${tags.description || ''}`.toLowerCase()
+
+  // Also check address/POI info from reverse geocoding
+  const addressText = addressInfo?.poiName || ''
+
+  // Check for multi-family indicators in OSM tags
+  const hasMultiFamilyTags = (
+    building === 'apartments' ||
+    building === 'residential' && residential === 'apartments' ||
+    residential === 'apartments' ||
+    landuse === 'residential' && isMultiFamilyText(allText)
+  )
+
+  // Check for multi-family in name/operator or address
+  const hasMultiFamilyName = isMultiFamilyText(allText) || isMultiFamilyText(addressText)
 
   // 1. Check explicit access tags first (most reliable)
   if (access === 'private') {
     if (clubKeywords.some(k => allText.includes(k))) {
       return { type: 'club', verified: true }
+    }
+    // Check if it's multi-family private
+    if (hasMultiFamilyTags || hasMultiFamilyName) {
+      return { type: 'multi-family', verified: true }
     }
     return { type: 'private', verified: true }
   }
@@ -78,6 +122,9 @@ function classifyCourt(tags) {
   }
 
   if (ownership === 'private') {
+    if (hasMultiFamilyTags || hasMultiFamilyName) {
+      return { type: 'multi-family', verified: true }
+    }
     return { type: 'private', verified: true }
   }
 
@@ -87,7 +134,16 @@ function classifyCourt(tags) {
   }
 
   if (publicKeywords.some(k => allText.includes(k))) {
+    // But if it also has multi-family indicators, it might be an apartment "community"
+    if (hasMultiFamilyName && !allText.includes('park') && !allText.includes('school')) {
+      return { type: 'multi-family', verified: false }
+    }
     return { type: 'public', verified: false }
+  }
+
+  // Check for multi-family before generic private
+  if (hasMultiFamilyTags || hasMultiFamilyName) {
+    return { type: 'multi-family', verified: false }
   }
 
   if (privateKeywords.some(k => allText.includes(k))) {
@@ -98,6 +154,24 @@ function classifyCourt(tags) {
   // unmarked courts in OSM are at public facilities that weren't fully tagged.
   // Private residential courts are rare and usually explicitly tagged.
   return { type: 'public', verified: false }
+}
+
+// Re-classify a court based on reverse geocoding results
+// This helps detect multi-family when the POI name indicates apartments
+function reclassifyWithAddress(currentType, verified, addressInfo) {
+  // Only reclassify private to multi-family if address indicates it
+  if (currentType === 'private' && addressInfo?.poiName) {
+    if (isMultiFamilyText(addressInfo.poiName)) {
+      return { type: 'multi-family', verified }
+    }
+  }
+  // Also check unverified public - might actually be apartment complex
+  if (currentType === 'public' && !verified && addressInfo?.poiName) {
+    if (isMultiFamilyText(addressInfo.poiName)) {
+      return { type: 'multi-family', verified: false }
+    }
+  }
+  return { type: currentType, verified }
 }
 
 // Cluster nearby courts of the same type to avoid duplicate listings
@@ -117,9 +191,10 @@ function clusterCourts(courts) {
     const cluster = [court]
     used.add(i)
 
-    // Skip clustering for private residential courts - neighboring houses
-    // could each have their own court and we don't want to merge them
-    if (court.type === 'private') {
+    // Skip clustering for private residential and multi-family courts
+    // - Private: neighboring houses could each have their own court
+    // - Multi-family: different apartment complexes shouldn't be merged
+    if (court.type === 'private' || court.type === 'multi-family') {
       clustered.push({ ...court, courtCount: 1 })
       continue
     }
@@ -348,9 +423,11 @@ async function reverseGeocode(lat, lng, mapboxToken) {
     if (poiResponse.ok) {
       const poiData = await poiResponse.json()
       if (poiData.features && poiData.features.length > 0) {
+        const feature = poiData.features[0]
         return {
-          address: poiData.features[0].place_name,
-          type: 'poi'
+          address: feature.place_name,
+          type: 'poi',
+          poiName: feature.text || feature.place_name.split(',')[0] // Get just the POI name
         }
       }
     }
@@ -446,21 +523,29 @@ export async function handler(event) {
       // Skip if outside search radius (in case Overpass returns extras)
       if (distance > distanceMiles) continue
 
-      // Classify court type
-      const { type, verified } = classifyCourt(element.tags || {})
-
       // Try to get address (limit geocoding calls)
       let address = null
       let addressType = null
+      let geocodeResult = null
       let coords = `${courtLat.toFixed(5)}, ${courtLng.toFixed(5)}`
 
       if (courts.length < 50) { // Limit reverse geocoding to first 50
         await trackApiUsage('mapbox-geocoding')
-        const geocodeResult = await reverseGeocode(courtLat, courtLng, mapboxToken)
+        geocodeResult = await reverseGeocode(courtLat, courtLng, mapboxToken)
         if (geocodeResult) {
           address = geocodeResult.address
           addressType = geocodeResult.type
         }
+      }
+
+      // Classify court type (using both OSM tags and address info)
+      let { type, verified } = classifyCourt(element.tags || {}, geocodeResult)
+
+      // If we got address info, try to reclassify (e.g., detect apartments from POI name)
+      if (geocodeResult) {
+        const reclassified = reclassifyWithAddress(type, verified, geocodeResult)
+        type = reclassified.type
+        verified = reclassified.verified
       }
 
       courts.push({
