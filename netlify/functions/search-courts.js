@@ -1,6 +1,7 @@
 import { verifySessionToken, getSessionFromCookies } from './utils/auth.js'
 import { jsonResponse, errorResponse, parseBody } from './utils/response.js'
 import { getQuota, incrementQuota, canUseQuota, trackApiUsage } from './utils/storage.js'
+import { logSearch } from './utils/logger.js'
 
 // Haversine distance formula (returns miles by default)
 function getDistance(lat1, lon1, lat2, lon2, unit = 'miles') {
@@ -482,6 +483,9 @@ export async function handler(event) {
 
     // Sort by distance
     clusteredCourts.sort((a, b) => a.distance - b.distance)
+
+    // Log the search
+    await logSearch(email, lat, lng, distanceMiles, clusteredCourts.length)
 
     // Increment quota
     const quota = incrementQuota(email)

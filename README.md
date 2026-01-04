@@ -132,6 +132,16 @@ The app classifies courts as:
 - **Public Facility**: Parks, schools, community centers
 - **Private Club**: Tennis clubs, country clubs
 
+## Example API calls
+
+# Authentication
+```
+curl -s -X POST
+   http://localhost:8888/.netlify/functions/auth-request-link \
+     -H "Content-Type: application/json" \
+     -d '{"email":"test@example.com"}' | head -100
+```
+
 ## License
 
 MIT

@@ -1,5 +1,6 @@
 import { jsonResponse, errorResponse, parseBody } from './utils/response.js'
 import { addToWaitlist, trackApiUsage } from './utils/storage.js'
+import { logWaitlist } from './utils/logger.js'
 
 const RESEND_API_KEY = process.env.RESEND_API_KEY
 const ADMIN_NOTIFICATION_EMAIL = process.env.ADMIN_NOTIFICATION_EMAIL
@@ -20,6 +21,9 @@ export async function handler(event) {
   try {
     // Add to waitlist
     addToWaitlist(normalizedEmail)
+
+    // Log waitlist signup
+    await logWaitlist(normalizedEmail)
 
     // Notify admin
     if (RESEND_API_KEY && ADMIN_NOTIFICATION_EMAIL) {

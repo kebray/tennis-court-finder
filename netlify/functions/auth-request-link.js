@@ -1,6 +1,7 @@
 import { isEmailAllowed, createMagicToken } from './utils/auth.js'
 import { jsonResponse, errorResponse, parseBody } from './utils/response.js'
 import { trackApiUsage } from './utils/storage.js'
+import { logLogin } from './utils/logger.js'
 
 const RESEND_API_KEY = process.env.RESEND_API_KEY
 
@@ -19,6 +20,8 @@ export async function handler(event) {
 
   // Check if email is allowed
   if (!isEmailAllowed(normalizedEmail)) {
+    // Log failed login attempt (not on allowed list)
+    await logLogin(normalizedEmail, false, event.headers['x-forwarded-for'] || event.headers['client-ip'])
     return jsonResponse({ success: false, notAllowed: true }, 403)
   }
 
@@ -77,6 +80,9 @@ export async function handler(event) {
     console.log('Email sent successfully to:', normalizedEmail)
 
     trackApiUsage('resend')
+
+    // Log successful login request
+    await logLogin(normalizedEmail, true, event.headers['x-forwarded-for'] || event.headers['client-ip'])
 
     return jsonResponse({ success: true })
   } catch (error) {

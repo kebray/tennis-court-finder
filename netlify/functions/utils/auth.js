@@ -28,6 +28,9 @@ export function isEmailAdmin(email) {
   return admins.includes(email.toLowerCase())
 }
 
+// Alias for isEmailAdmin
+export const isAdmin = isEmailAdmin
+
 // Get current JWT version (for mass invalidation)
 export function getJwtVersion() {
   return parseInt(process.env.JWT_VERSION || '1', 10)
