@@ -136,6 +136,9 @@ Add their email to both `ALLOWED_EMAILS` and `ADMIN_EMAILS`.
 ### Invalidate all sessions
 Increment `JWT_VERSION` in Netlify environment variables.
 
+### Code Commits
+When commiting code to the respository, do not include any references to Claude in the git commit messages.
+
 ### Debug search issues
 Check Netlify function logs for Overpass API errors. Multiple fallback endpoints are configured.
 
@@ -149,3 +152,4 @@ These files contain sensitive info and are gitignored:
 ## Deployment
 
 Push to main branch triggers automatic Netlify deployment. Environment variables must be set in Netlify dashboard for production.
+
