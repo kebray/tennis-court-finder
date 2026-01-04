@@ -35,6 +35,13 @@ function getCurrentPeriod() {
   return `${year}-Q${quarter}`
 }
 
+// Get period for a specific date
+function getPeriodForDate(date) {
+  const year = date.getFullYear()
+  const quarter = Math.ceil((date.getMonth() + 1) / CONFIG.ROTATION_MONTHS)
+  return `${year}-Q${quarter}`
+}
+
 // Get current day key (e.g., "2025-01-03")
 function getCurrentDay() {
   return new Date().toISOString().split('T')[0]
@@ -53,6 +60,8 @@ export async function logEvent(event) {
   const day = getCurrentDay()
   const key = `${period}/${day}`
 
+  console.log(`[LOG] logEvent: Writing to key ${key}`)
+
   const entry = {
     timestamp: new Date().toISOString(),
     ...event
@@ -65,9 +74,11 @@ export async function logEvent(event) {
       const existing = await store.get(key, { type: 'json' })
       if (existing) {
         logs = existing
+        console.log(`[LOG] logEvent: Found ${logs.length} existing entries for ${key}`)
       }
     } catch (e) {
       // Key doesn't exist yet, start fresh
+      console.log(`[LOG] logEvent: No existing entries for ${key}, starting fresh`)
     }
 
     // Append new entry
@@ -76,9 +87,9 @@ export async function logEvent(event) {
     // Save back
     await store.setJSON(key, logs)
 
-    console.log(`Logged event: ${event.action} for ${event.email}`)
+    console.log(`[LOG] logEvent: Successfully saved ${logs.length} entries to ${key}`)
   } catch (error) {
-    console.error('Failed to log event:', error)
+    console.error('[LOG] logEvent: Failed to log event:', error)
     // Don't throw - logging should not break the app
   }
 }
@@ -160,26 +171,31 @@ export async function getRecentLogs(days = 7) {
     return []
   }
   const logs = []
-  const period = getCurrentPeriod()
 
-  // Generate keys for last N days
+  console.log(`[LOG] getRecentLogs: Fetching logs for last ${days} days`)
+
+  // Generate keys for last N days - handle quarter boundaries
   const today = new Date()
   for (let i = 0; i < days; i++) {
     const date = new Date(today)
     date.setDate(date.getDate() - i)
     const dayKey = date.toISOString().split('T')[0]
+    const period = getPeriodForDate(date) // Get correct period for each day
     const key = `${period}/${dayKey}`
 
     try {
       const dayLogs = await store.get(key, { type: 'json' })
       if (dayLogs) {
+        console.log(`[LOG] Found ${dayLogs.length} logs for ${key}`)
         logs.push(...dayLogs)
       }
     } catch (e) {
       // Day doesn't exist, skip
+      console.log(`[LOG] No logs for ${key}: ${e.message}`)
     }
   }
 
+  console.log(`[LOG] getRecentLogs: Total ${logs.length} logs found`)
   return logs.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
 }
 
@@ -365,7 +381,14 @@ async function cleanupOldMetrics() {
 
 // Get dashboard summary
 export async function getDashboardSummary() {
+  console.log('[LOG] getDashboardSummary: Starting')
+  console.log('[LOG] getDashboardSummary: isBlobsAvailable =', isBlobsAvailable())
+  console.log('[LOG] getDashboardSummary: NETLIFY =', process.env.NETLIFY)
+  console.log('[LOG] getDashboardSummary: NETLIFY_BLOBS_CONTEXT exists =', !!process.env.NETLIFY_BLOBS_CONTEXT)
+
   const recentLogs = await getRecentLogs(30)
+  console.log('[LOG] getDashboardSummary: Got', recentLogs.length, 'recent logs')
+
   const currentMetrics = calculateMetrics(recentLogs)
   const historicalPeriods = await getAllMetricsPeriods()
 
