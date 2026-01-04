@@ -117,9 +117,17 @@ function updateMarkers(courts) {
 
     // Create popup
     const courtCountText = court.courtCount > 1 ? ` (${court.courtCount} courts)` : ''
+    const googleMapsUrl = `https://www.google.com/maps/@${court.lat},${court.lng},18z/data=!3m1!1e3`
     const popup = new mapboxgl.Popup({ offset: 25 }).setHTML(`
       <div class="p-2">
-        <p class="font-semibold text-gray-900">${court.address || 'Unknown Address'}</p>
+        <div class="flex items-start justify-between">
+          <p class="font-semibold text-gray-900">${court.address || 'Unknown Address'}</p>
+          <a href="${googleMapsUrl}" target="_blank" rel="noopener noreferrer" class="ml-2 text-gray-400 hover:text-blue-600" title="Open in Google Maps">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
+            </svg>
+          </a>
+        </div>
         <p class="text-sm text-gray-600 capitalize">${court.type || 'Unknown'}${courtCountText}</p>
         ${court.distance ? `<p class="text-sm text-gray-500">${court.distance.toFixed(1)} miles away</p>` : ''}
         ${court.verified ? '<p class="text-xs text-green-600 mt-1">✓ Verified</p>' : ''}
@@ -229,6 +237,10 @@ function toggleMapStyle() {
         <div class="flex items-center text-xs">
           <span class="w-3 h-3 rounded-full bg-green-500 mr-2"></span>
           <span class="text-gray-600">Private Residential</span>
+        </div>
+        <div class="flex items-center text-xs">
+          <span class="w-3 h-3 rounded-full bg-purple-500 mr-2"></span>
+          <span class="text-gray-600">Multi-Family</span>
         </div>
         <div class="flex items-center text-xs">
           <span class="w-3 h-3 rounded-full bg-blue-500 mr-2"></span>
