@@ -70,8 +70,11 @@ A Vue.js 3 web application that helps users find tennis courts in their area. Th
 | Source Data | Classification |
 |-------------|----------------|
 | `access=private` + residential area | **Private Residential** |
+| `access=private` + apartment/condo keywords | **Multi-Family** |
+| `building=apartments` nearby | **Multi-Family** |
 | `access=public` or `leisure=sports_centre` | **Public Facility** |
 | `access=members` or tagged as club | **Private Club** |
+| Within 200m of feature with "club" in name | **Private Club** |
 | Residential zoning + no commercial tags | **Likely Private Residential** |
 
 ### Verification Strategy
@@ -117,7 +120,7 @@ A Vue.js 3 web application that helps users find tennis courts in their area. Th
 - Interactive Mapbox GL JS map
 - Toggle satellite/street view
 - Markers for each tennis court location
-- Color-coded by classification (private residential = green, public = blue, club = orange)
+- Color-coded by classification (private = green, multi-family = purple, public = blue, club = orange)
 - Click marker for address details
 
 #### 1.5 Results Display
@@ -336,8 +339,26 @@ Will be detailed in `README.md` and `SETUP-INSTRUCTIONS.md`, but high-level:
 9. **Admin Features** - Token invalidation panel
 10. **Waitlist** - Unauthorized user email collection
 11. **Terms of Use** - Legal modal
-12. **Testing & Polish** - Error handling, edge cases
+12. **Testing** - Vitest test suite with pre-push hooks
 13. **Documentation** - README with deploy instructions
+
+## Testing Strategy
+
+The project uses **Vitest** for unit testing court utility functions. A **husky pre-push hook** ensures all tests pass before code can be pushed to the repository.
+
+### What's Tested
+- Distance calculations
+- Court classification logic
+- Multi-family detection keywords
+- Club detection keywords
+- Court clustering algorithms
+- Nearby feature association
+
+### Running Tests
+```bash
+npm test          # Run once
+npm run test:watch # Watch mode
+```
 
 ---
 

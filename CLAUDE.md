@@ -36,6 +36,8 @@ Tennis Court Finder is a web application that helps users locate tennis courts w
 │   │   └── results.js       # Court results and filtering
 │   ├── router/           # Vue Router config
 │   └── App.vue           # Root component
+├── .husky/
+│   └── pre-push              # Git hook to run tests before push
 ├── netlify/functions/    # Serverless backend
 │   ├── auth-request-link.js  # Magic link generation
 │   ├── auth-verify.js        # Token verification
@@ -47,11 +49,14 @@ Tennis Court Finder is a web application that helps users locate tennis courts w
 │   └── utils/                # Shared utilities
 │       ├── auth.js              # JWT, email validation
 │       ├── response.js          # HTTP response helpers
-│       └── storage.js           # Quota tracking, waitlist
+│       ├── storage.js           # Quota tracking, waitlist
+│       ├── court-utils.js       # Court classification logic (tested)
+│       └── court-utils.test.js  # Tests for court utilities
 ├── public/               # Static assets
 ├── .env                  # Local environment (gitignored)
 ├── .env.example          # Environment template
 ├── netlify.toml          # Netlify configuration
+├── vitest.config.js      # Test configuration
 ├── TODO.md               # Future enhancements (gitignored)
 └── instructions.md       # Original requirements (gitignored)
 ```
@@ -60,7 +65,7 @@ Tennis Court Finder is a web application that helps users locate tennis courts w
 
 1. **Magic Link Authentication** - Users receive email links to login (no passwords)
 2. **Court Search** - Query OpenStreetMap for tennis courts within radius
-3. **Court Classification** - Categorizes as Private/Public/Club based on OSM tags
+3. **Court Classification** - Categorizes as Private/Multi-Family/Public/Club based on OSM tags and nearby features
 4. **Filtering** - Filter by type, verified status, has real address
 5. **Interactive Map** - Mapbox with satellite/street view toggle
 6. **Results Table** - Sortable, with copy address and Google Maps links
@@ -96,15 +101,66 @@ npm run build
 
 # Preview production build
 npm run preview
+
+# Run tests once
+npm test
+
+# Run tests in watch mode
+npm run test:watch
 ```
+
+## Testing
+
+The project uses **Vitest** for testing. Tests are located in `netlify/functions/utils/court-utils.test.js`.
+
+### Test Coverage
+- **45 tests** covering court utility functions:
+  - Distance calculations (`getDistance`)
+  - Multi-family text detection (`isMultiFamilyText`)
+  - Club text detection (`isClubText`)
+  - Court classification (`classifyCourt`)
+  - Address reclassification (`reclassifyWithAddress`)
+  - Court clustering (`clusterCourts`)
+  - Nearby feature detection (`findNearbyClub`, `findNearbyMultiFamily`)
+
+### Pre-Push Hook
+A **husky pre-push hook** automatically runs all tests before every `git push`. If any test fails, the push is aborted:
+
+```
+Running tests before push...
+✓ netlify/functions/utils/court-utils.test.js (45 tests) 4ms
+Tests passed! Proceeding with push.
+```
+
+This prevents broken code from being deployed to production.
 
 ## Important Patterns
 
 ### Court Classification Logic
-`search-courts.js` classifies courts based on OSM tags:
-- Checks `access` tag first (most reliable)
-- Falls back to keywords in name/operator
-- Defaults to "public (unverified)" if no indicators
+Court classification is handled by `court-utils.js` with the following priority:
+
+1. **OSM Tags** (most reliable):
+   - `access=private` → Private Residential
+   - `access=public/yes/permissive` → Public Facility
+   - `access=members/customers` → Private Club
+   - `building=apartments` → Multi-Family
+
+2. **Keyword Detection**:
+   - Club keywords: "club", "country", "tennis center", "racquet", "resort", "hotel"
+   - Public keywords: "park", "school", "recreation", "municipal", "ymca"
+   - Multi-family keywords: "apartment", "condo", "townhome", "villa", "residences"
+
+3. **Nearby Feature Detection** (via additional Overpass queries):
+   - Courts within 200m of a club feature (with "club" in name) → Club
+   - Courts within 100m of an apartment building → Multi-Family
+
+4. **Default**: If no indicators, defaults to "public (unverified)"
+
+### Court Clustering
+Multiple courts at the same location are clustered into a single result:
+- **Public courts**: 50m clustering distance
+- **Club courts**: 150m clustering distance (courts spread across property)
+- **Private/Multi-family**: No clustering (different properties shouldn't merge)
 
 ### Reverse Geocoding Fallback Chain
 1. Mapbox street address

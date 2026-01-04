@@ -6,7 +6,7 @@ A Vue.js 3 web application that helps users find tennis courts in their area. Th
 
 - **Location-based Search**: Enter an address or zip code and specify a maximum driving distance
 - **Interactive Map**: Mapbox-powered map with satellite/street view toggle
-- **Court Classification**: Differentiates between private residential, public facilities, and private clubs
+- **Court Classification**: Differentiates between private residential, multi-family (apartments/condos), public facilities, and private clubs
 - **Export Options**: Download results as CSV or copy addresses to clipboard
 - **Magic Link Authentication**: Secure email-based login (no passwords)
 - **Rate Limiting**: Daily search quotas to protect API usage
@@ -54,6 +54,18 @@ A Vue.js 3 web application that helps users find tennis courts in their area. Th
 
 5. Open http://localhost:8888 in your browser
 
+### Running Tests
+
+```bash
+# Run tests once
+npm test
+
+# Run tests in watch mode (re-runs on file changes)
+npm run test:watch
+```
+
+Tests are automatically run before every `git push` via a husky pre-push hook. If tests fail, the push is aborted.
+
 ### Environment Variables
 
 | Variable | Description | Required |
@@ -82,9 +94,13 @@ See [SETUP-INSTRUCTIONS.md](./SETUP-INSTRUCTIONS.md) for detailed deployment ins
 
 ```
 tennis-court-finder/
+├── .husky/
+│   └── pre-push            # Git hook to run tests before push
 ├── netlify/
 │   └── functions/          # Serverless backend functions
 │       ├── utils/          # Shared utilities
+│       │   ├── court-utils.js      # Court classification logic
+│       │   └── court-utils.test.js # Tests for court utilities
 │       ├── auth-*.js       # Authentication endpoints
 │       ├── search-courts.js
 │       ├── quota.js
@@ -103,7 +119,8 @@ tennis-court-finder/
 ├── .env.example            # Environment variable template
 ├── netlify.toml            # Netlify configuration
 ├── package.json
-└── vite.config.js
+├── vite.config.js
+└── vitest.config.js        # Test configuration
 ```
 
 ## API Endpoints
@@ -128,9 +145,10 @@ Tennis court locations are sourced from [OpenStreetMap](https://www.openstreetma
 - **Rural areas**: May have incomplete data
 
 The app classifies courts as:
-- **Private Residential**: Courts on private properties
+- **Private Residential**: Courts on private single-family properties
+- **Multi-Family**: Apartment complexes, condominiums, townhome communities
 - **Public Facility**: Parks, schools, community centers
-- **Private Club**: Tennis clubs, country clubs
+- **Private Club**: Tennis clubs, country clubs, resorts
 
 ## Example API calls
 
