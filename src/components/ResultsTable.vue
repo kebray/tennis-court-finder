@@ -1,11 +1,23 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, watch, nextTick } from 'vue'
 import { useResultsStore } from '../stores/results'
 
 const emit = defineEmits(['export-csv', 'copy-addresses'])
 
 const resultsStore = useResultsStore()
 const copiedId = ref(null)
+const rowRefs = ref({})
+
+// Watch for selected court changes and auto-scroll to the row
+watch(() => resultsStore.selectedCourt, async (court) => {
+  if (court && rowRefs.value[court.id]) {
+    await nextTick()
+    rowRefs.value[court.id].scrollIntoView({
+      behavior: 'smooth',
+      block: 'center'
+    })
+  }
+})
 
 const typeLabels = {
   private: 'Private Residential',
@@ -215,6 +227,7 @@ function getGoogleMapsUrl(court) {
           <tr
             v-for="court in resultsStore.filteredCourts"
             :key="court.id"
+            :ref="el => { if (el) rowRefs[court.id] = el }"
             @click="resultsStore.selectCourt(court)"
             :class="[
               'cursor-pointer transition',
